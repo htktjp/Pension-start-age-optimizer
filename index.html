@@ -1,18 +1,18 @@
-export default function PensionStartAgeOptimizer() {
-  const { useMemo, useState } = React;
-  const {
-    ResponsiveContainer,
-    LineChart,
-    Line,
-    XAxis,
-    YAxis,
-    CartesianGrid,
-    Tooltip,
-    BarChart,
-    Bar,
-    ReferenceLine,
-  } = Recharts;
+import React, { useMemo, useState } from "react";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  BarChart,
+  Bar,
+  ReferenceLine,
+} from "recharts";
 
+export default function PensionStartAgeOptimizer() {
   const LIFE_EXPECTANCY_MALE = 81.09;
 
   const [monthlyAt65, setMonthlyAt65] = useState(150000);
@@ -25,14 +25,14 @@ export default function PensionStartAgeOptimizer() {
   const earlyRatePerMonth = useOldEarlyRate ? 0.005 : 0.004;
   const lateRatePerMonth = 0.007;
 
-  const yen = (value) =>
+  const yen = (value: number) =>
     new Intl.NumberFormat("ja-JP", {
       style: "currency",
       currency: "JPY",
       maximumFractionDigits: 0,
     }).format(value);
 
-  const ageLabel = (monthsFrom60) => {
+  const ageLabel = (monthsFrom60: number) => {
     const years = 60 + Math.floor(monthsFrom60 / 12);
     const months = monthsFrom60 % 12;
     return months === 0 ? `${years}歳` : `${years}歳${months}か月`;
@@ -41,7 +41,18 @@ export default function PensionStartAgeOptimizer() {
   const results = useMemo(() => {
     const deathMonthFrom60 = Math.max(0, Math.round((expectedAge - 60) * 12));
     const age65MonthFrom60 = 60;
-    const list = [];
+    const list = [] as {
+      startMonth: number;
+      startAge: number;
+      startLabel: string;
+      monthlyPension: number;
+      annualPension: number;
+      paidMonths: number;
+      totalReceived: number;
+      multiplier: number;
+      adjustmentType: string;
+      reductionOrIncreasePercent: number;
+    }[];
 
     for (let startMonth = 0; startMonth <= 180; startMonth += 1) {
       let multiplier;
@@ -82,7 +93,7 @@ export default function PensionStartAgeOptimizer() {
 
     const best = [...list].sort((a, b) => b.totalReceived - a.totalReceived)[0];
     const ranked = [...list].sort((a, b) => b.totalReceived - a.totalReceived);
-    const age65 = list.find((x) => x.startMonth === 60);
+    const age65 = list.find((x) => x.startMonth === 60)!;
 
     return {
       list,
@@ -103,9 +114,9 @@ export default function PensionStartAgeOptimizer() {
     }));
 
   const breakEvenText = useMemo(() => {
-    const near66 = results.list.find((x) => x.startMonth === 72);
-    const near67 = results.list.find((x) => x.startMonth === 84);
-    const near68 = results.list.find((x) => x.startMonth === 96);
+    const near66 = results.list.find((x) => x.startMonth === 72)!;
+    const near67 = results.list.find((x) => x.startMonth === 84)!;
+    const near68 = results.list.find((x) => x.startMonth === 96)!;
     return { near66, near67, near68 };
   }, [results]);
 
@@ -272,9 +283,9 @@ export default function PensionStartAgeOptimizer() {
                   <LineChart data={chartData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="startLabel" angle={-25} textAnchor="end" height={70} interval={0} />
-                    <YAxis tickFormatter={(v) => `${Math.round(v / 10000)}万`} width={70} />
+                    <YAxis tickFormatter={(v: number) => `${Math.round(v / 10000)}万`} width={70} />
                     <Tooltip
-                      formatter={(value, name) => {
+                      formatter={(value: number, name: string) => {
                         if (name === "totalReceived") return [yen(value), "総受給額"];
                         return [value, name];
                       }}
@@ -296,8 +307,8 @@ export default function PensionStartAgeOptimizer() {
                   <BarChart data={chartData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
                     <CartesianGrid strokeDasharray="3 3" />
                     <XAxis dataKey="startLabel" angle={-25} textAnchor="end" height={70} interval={0} />
-                    <YAxis tickFormatter={(v) => `${Math.round(v / 10000)}万`} width={70} />
-                    <Tooltip formatter={(value) => [yen(value), "65歳との差額"]} />
+                    <YAxis tickFormatter={(v: number) => `${Math.round(v / 10000)}万`} width={70} />
+                    <Tooltip formatter={(value: number) => [yen(value), "65歳との差額"]} />
                     <ReferenceLine y={0} />
                     <Bar dataKey="diffFrom65" radius={[10, 10, 0, 0]} />
                   </BarChart>
@@ -352,7 +363,7 @@ export default function PensionStartAgeOptimizer() {
 
             <section className="rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
               <h2 className="text-lg font-semibold">注意</h2>
-              <ul className="mt-3 space-y-2 text-sm leading-7 text-neutral-700">
+              <ul className="mt-3 space-y-2 text-sm leading-7 text-neutral-700 list-disc pl-5">
                 <li>このページは受取総額の単純比較です。税金、社会保険料、運用利回り、在職老齢年金、加給年金、障害・遺族年金との関係は反映していません。</li>
                 <li>特別支給の老齢厚生年金、一部繰上げ、加給年金、在職停止などは個別条件で結果が変わります。</li>
                 <li>最終判断は、ねんきん定期便・ねんきんネット・社労士等の個別確認と合わせて行ってください。</li>
