@@ -1,0 +1,366 @@
+export default function PensionStartAgeOptimizer() {
+  const { useMemo, useState } = React;
+  const {
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    BarChart,
+    Bar,
+    ReferenceLine,
+  } = Recharts;
+
+  const LIFE_EXPECTANCY_MALE = 81.09;
+
+  const [monthlyAt65, setMonthlyAt65] = useState(150000);
+  const [birthYear, setBirthYear] = useState(1974);
+  const [customLifeAge, setCustomLifeAge] = useState(81.09);
+  const [useCustomLifeAge, setUseCustomLifeAge] = useState(false);
+
+  const expectedAge = useCustomLifeAge ? customLifeAge : LIFE_EXPECTANCY_MALE;
+  const useOldEarlyRate = birthYear <= 1962;
+  const earlyRatePerMonth = useOldEarlyRate ? 0.005 : 0.004;
+  const lateRatePerMonth = 0.007;
+
+  const yen = (value) =>
+    new Intl.NumberFormat("ja-JP", {
+      style: "currency",
+      currency: "JPY",
+      maximumFractionDigits: 0,
+    }).format(value);
+
+  const ageLabel = (monthsFrom60) => {
+    const years = 60 + Math.floor(monthsFrom60 / 12);
+    const months = monthsFrom60 % 12;
+    return months === 0 ? `${years}歳` : `${years}歳${months}か月`;
+  };
+
+  const results = useMemo(() => {
+    const deathMonthFrom60 = Math.max(0, Math.round((expectedAge - 60) * 12));
+    const age65MonthFrom60 = 60;
+    const list = [];
+
+    for (let startMonth = 0; startMonth <= 180; startMonth += 1) {
+      let multiplier;
+      let adjustmentType;
+
+      if (startMonth < age65MonthFrom60) {
+        const monthsEarly = age65MonthFrom60 - startMonth;
+        multiplier = Math.max(0, 1 - earlyRatePerMonth * monthsEarly);
+        adjustmentType = "繰上げ";
+      } else if (startMonth > age65MonthFrom60) {
+        const monthsLate = startMonth - age65MonthFrom60;
+        multiplier = 1 + lateRatePerMonth * monthsLate;
+        adjustmentType = "繰下げ";
+      } else {
+        multiplier = 1;
+        adjustmentType = "65歳受給";
+      }
+
+      const paidMonths = Math.max(0, deathMonthFrom60 - startMonth);
+      const monthlyPension = monthlyAt65 * multiplier;
+      const totalReceived = monthlyPension * paidMonths;
+      const annualPension = monthlyPension * 12;
+      const startAge = 60 + startMonth / 12;
+
+      list.push({
+        startMonth,
+        startAge,
+        startLabel: ageLabel(startMonth),
+        monthlyPension,
+        annualPension,
+        paidMonths,
+        totalReceived,
+        multiplier,
+        adjustmentType,
+        reductionOrIncreasePercent: (multiplier - 1) * 100,
+      });
+    }
+
+    const best = [...list].sort((a, b) => b.totalReceived - a.totalReceived)[0];
+    const ranked = [...list].sort((a, b) => b.totalReceived - a.totalReceived);
+    const age65 = list.find((x) => x.startMonth === 60);
+
+    return {
+      list,
+      best,
+      ranked,
+      age65,
+      deathMonthFrom60,
+    };
+  }, [monthlyAt65, expectedAge, earlyRatePerMonth]);
+
+  const top5 = results.ranked.slice(0, 5);
+
+  const chartData = results.list
+    .filter((x) => x.startMonth % 12 === 0)
+    .map((x) => ({
+      ...x,
+      diffFrom65: x.totalReceived - results.age65.totalReceived,
+    }));
+
+  const breakEvenText = useMemo(() => {
+    const near66 = results.list.find((x) => x.startMonth === 72);
+    const near67 = results.list.find((x) => x.startMonth === 84);
+    const near68 = results.list.find((x) => x.startMonth === 96);
+    return { near66, near67, near68 };
+  }, [results]);
+
+  return (
+    <div
+      className="min-h-screen bg-neutral-50 text-neutral-900"
+      style={{
+        fontFamily:
+          '"Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif',
+      }}
+    >
+      <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
+        <div className="mb-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
+                年金受給開始 最適化シミュレーター
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-neutral-600">
+                男性・平均寿命前提で、受給開始年齢ごとの総受給額を比較し、最も受取総額が大きい開始時期を表示します。
+              </p>
+            </div>
+            <div className="rounded-2xl bg-neutral-900 px-4 py-3 text-white shadow-sm">
+              <div className="text-xs text-neutral-300">今回の前提での最適解</div>
+              <div className="mt-1 text-2xl font-bold">{results.best.startLabel}</div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
+          <div className="space-y-6">
+            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+              <h2 className="text-lg font-semibold">入力条件</h2>
+              <div className="mt-5 space-y-5">
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-neutral-700">
+                    65歳時点の想定月額年金
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="1000"
+                    value={monthlyAt65}
+                    onChange={(e) => setMonthlyAt65(Number(e.target.value || 0))}
+                    className="w-full rounded-2xl border border-neutral-300 px-4 py-3 text-lg outline-none ring-0 focus:border-neutral-500"
+                  />
+                  <div className="mt-2 text-xs text-neutral-500">
+                    例：150,000円。老齢基礎年金＋老齢厚生年金の合計想定額を入れてください。
+                  </div>
+                </div>
+
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-neutral-700">
+                    生年（繰上げ減額率の判定用）
+                  </label>
+                  <input
+                    type="number"
+                    min="1900"
+                    max="2100"
+                    value={birthYear}
+                    onChange={(e) => setBirthYear(Number(e.target.value || 1974))}
+                    className="w-full rounded-2xl border border-neutral-300 px-4 py-3 text-lg outline-none ring-0 focus:border-neutral-500"
+                  />
+                  <div className="mt-2 text-xs text-neutral-500">
+                    {useOldEarlyRate
+                      ? "昭和37年4月1日以前生まれ想定：繰上げ減額率は月0.5%で計算"
+                      : "昭和37年4月2日以降生まれ想定：繰上げ減額率は月0.4%で計算"}
+                  </div>
+                </div>
+
+                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                  <label className="flex items-center gap-3 text-sm font-medium text-neutral-800">
+                    <input
+                      type="checkbox"
+                      checked={useCustomLifeAge}
+                      onChange={(e) => setUseCustomLifeAge(e.target.checked)}
+                      className="h-4 w-4"
+                    />
+                    平均寿命ではなく任意の寿命で試算する
+                  </label>
+                  <div className="mt-3">
+                    <input
+                      type="number"
+                      min="60"
+                      max="120"
+                      step="0.01"
+                      value={customLifeAge}
+                      onChange={(e) => setCustomLifeAge(Number(e.target.value || 81.09))}
+                      disabled={!useCustomLifeAge}
+                      className="w-full rounded-2xl border border-neutral-300 px-4 py-3 text-lg outline-none disabled:bg-neutral-100"
+                    />
+                  </div>
+                  <div className="mt-2 text-xs text-neutral-500">
+                    未チェック時は男性平均寿命 {LIFE_EXPECTANCY_MALE.toFixed(2)}歳 を使用
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+              <h2 className="text-lg font-semibold">今回の結論</h2>
+              <div className="mt-4 grid gap-4">
+                <div className="rounded-2xl bg-neutral-900 p-5 text-white">
+                  <div className="text-sm text-neutral-300">最適な受給開始年齢</div>
+                  <div className="mt-1 text-3xl font-bold">{results.best.startLabel}</div>
+                  <div className="mt-2 text-sm text-neutral-300">
+                    予想寿命 {expectedAge.toFixed(2)}歳 までの総受給額が最大
+                  </div>
+                </div>
+
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                    <div className="text-xs text-neutral-500">最適開始時の月額</div>
+                    <div className="mt-1 text-xl font-semibold">{yen(results.best.monthlyPension)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                    <div className="text-xs text-neutral-500">最適開始時の総受給額</div>
+                    <div className="mt-1 text-xl font-semibold">{yen(results.best.totalReceived)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                    <div className="text-xs text-neutral-500">65歳開始の総受給額</div>
+                    <div className="mt-1 text-xl font-semibold">{yen(results.age65.totalReceived)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                    <div className="text-xs text-neutral-500">65歳開始との差額</div>
+                    <div className="mt-1 text-xl font-semibold">
+                      {yen(results.best.totalReceived - results.age65.totalReceived)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+              <h2 className="text-lg font-semibold">トップ5</h2>
+              <div className="mt-4 space-y-3">
+                {top5.map((item, index) => (
+                  <div
+                    key={item.startMonth}
+                    className="flex items-center justify-between rounded-2xl bg-neutral-50 px-4 py-3 ring-1 ring-neutral-200"
+                  >
+                    <div>
+                      <div className="text-sm text-neutral-500">{index + 1}位</div>
+                      <div className="text-lg font-semibold">{item.startLabel}</div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm text-neutral-500">総受給額</div>
+                      <div className="text-base font-semibold">{yen(item.totalReceived)}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </section>
+          </div>
+
+          <div className="space-y-6">
+            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+              <h2 className="text-lg font-semibold">開始年齢ごとの総受給額</h2>
+              <p className="mt-2 text-sm text-neutral-600">
+                横軸は受給開始年齢、縦軸は {expectedAge.toFixed(2)}歳 までの累計受給額です。
+              </p>
+              <div className="mt-6 h-[360px] w-full">
+                <ResponsiveContainer>
+                  <LineChart data={chartData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="startLabel" angle={-25} textAnchor="end" height={70} interval={0} />
+                    <YAxis tickFormatter={(v) => `${Math.round(v / 10000)}万`} width={70} />
+                    <Tooltip
+                      formatter={(value, name) => {
+                        if (name === "totalReceived") return [yen(value), "総受給額"];
+                        return [value, name];
+                      }}
+                    />
+                    <ReferenceLine x={results.best.startLabel} strokeDasharray="4 4" />
+                    <Line type="monotone" dataKey="totalReceived" strokeWidth={3} dot={false} />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+              <h2 className="text-lg font-semibold">65歳開始との差額</h2>
+              <p className="mt-2 text-sm text-neutral-600">
+                プラスなら65歳開始より得、マイナスなら65歳開始より少ない受取額です。
+              </p>
+              <div className="mt-6 h-[360px] w-full">
+                <ResponsiveContainer>
+                  <BarChart data={chartData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
+                    <CartesianGrid strokeDasharray="3 3" />
+                    <XAxis dataKey="startLabel" angle={-25} textAnchor="end" height={70} interval={0} />
+                    <YAxis tickFormatter={(v) => `${Math.round(v / 10000)}万`} width={70} />
+                    <Tooltip formatter={(value) => [yen(value), "65歳との差額"]} />
+                    <ReferenceLine y={0} />
+                    <Bar dataKey="diffFrom65" radius={[10, 10, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+              <h2 className="text-lg font-semibold">計算式</h2>
+              <div className="mt-4 space-y-3 text-sm leading-7 text-neutral-700">
+                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                  <div className="font-medium">繰上げ</div>
+                  <div>
+                    65歳より前なら、65歳時点月額 × ｛1 − （65歳までの月数 × {useOldEarlyRate ? "0.5" : "0.4"}%）｝
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                  <div className="font-medium">繰下げ</div>
+                  <div>
+                    65歳より後なら、65歳時点月額 × ｛1 ＋ （繰下げ月数 × 0.7%）｝
+                  </div>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                  <div className="font-medium">総受給額</div>
+                  <div>
+                    調整後の月額年金 × （想定寿命到達までの受給月数）
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
+              <h2 className="text-lg font-semibold">この前提で見える傾向</h2>
+              <div className="mt-4 grid gap-4 md:grid-cols-3">
+                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                  <div className="text-xs text-neutral-500">66歳開始</div>
+                  <div className="mt-1 text-base font-semibold">{yen(breakEvenText.near66.totalReceived)}</div>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                  <div className="text-xs text-neutral-500">67歳開始</div>
+                  <div className="mt-1 text-base font-semibold">{yen(breakEvenText.near67.totalReceived)}</div>
+                </div>
+                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
+                  <div className="text-xs text-neutral-500">68歳開始</div>
+                  <div className="mt-1 text-base font-semibold">{yen(breakEvenText.near68.totalReceived)}</div>
+                </div>
+              </div>
+              <p className="mt-4 text-sm leading-7 text-neutral-600">
+                平均寿命を前提にすると、受給を早めすぎると月額が下がりすぎ、遅らせすぎると受給月数が減りすぎます。そのため、65歳ちょうどより少し後ろの年齢が最適になりやすい設計です。
+              </p>
+            </section>
+
+            <section className="rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
+              <h2 className="text-lg font-semibold">注意</h2>
+              <ul className="mt-3 space-y-2 text-sm leading-7 text-neutral-700">
+                <li>このページは受取総額の単純比較です。税金、社会保険料、運用利回り、在職老齢年金、加給年金、障害・遺族年金との関係は反映していません。</li>
+                <li>特別支給の老齢厚生年金、一部繰上げ、加給年金、在職停止などは個別条件で結果が変わります。</li>
+                <li>最終判断は、ねんきん定期便・ねんきんネット・社労士等の個別確認と合わせて行ってください。</li>
+              </ul>
+            </section>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
