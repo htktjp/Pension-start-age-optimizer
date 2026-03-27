@@ -1,377 +1,670 @@
-import React, { useMemo, useState } from "react";
-import {
-  ResponsiveContainer,
-  LineChart,
-  Line,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  BarChart,
-  Bar,
-  ReferenceLine,
-} from "recharts";
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>年金受給開始 最適化シミュレーター</title>
+  <style>
+    :root{
+      --bg:#f5f5f5;
+      --card:#ffffff;
+      --text:#171717;
+      --muted:#666666;
+      --line:#e5e5e5;
+      --accent:#111111;
+      --warn-bg:#fffbeb;
+      --warn-line:#fcd34d;
+      --shadow:0 1px 3px rgba(0,0,0,.06);
+      --radius:24px;
+    }
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:"Noto Sans JP","Hiragino Sans","Yu Gothic UI","Yu Gothic","Meiryo",sans-serif;
+    }
+    .wrap{
+      max-width:1280px;
+      margin:0 auto;
+      padding:24px;
+    }
+    .card{
+      background:var(--card);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+    }
+    .hero{
+      padding:24px;
+      margin-bottom:24px;
+      display:flex;
+      gap:16px;
+      align-items:flex-end;
+      justify-content:space-between;
+      flex-wrap:wrap;
+    }
+    h1{
+      margin:0;
+      font-size:32px;
+      line-height:1.25;
+    }
+    h2{
+      margin:0 0 16px 0;
+      font-size:22px;
+    }
+    p{
+      margin:8px 0 0 0;
+      color:var(--muted);
+      line-height:1.8;
+    }
+    .best-box{
+      background:#111;
+      color:#fff;
+      border-radius:20px;
+      padding:16px 18px;
+      min-width:220px;
+    }
+    .best-box .label{
+      font-size:12px;
+      color:#cfcfcf;
+    }
+    .best-box .value{
+      margin-top:6px;
+      font-size:34px;
+      font-weight:700;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns:360px 1fr;
+      gap:24px;
+    }
+    .panel{
+      padding:24px;
+    }
+    .stack{display:flex; flex-direction:column; gap:24px;}
+    label{
+      display:block;
+      font-size:14px;
+      font-weight:700;
+      margin-bottom:8px;
+    }
+    input[type="number"]{
+      width:100%;
+      padding:14px 16px;
+      border:1px solid #cfcfcf;
+      border-radius:18px;
+      font-size:18px;
+      font-family:inherit;
+      background:#fff;
+    }
+    input[type="checkbox"]{
+      transform:translateY(1px);
+    }
+    .sub{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.7;
+      margin-top:8px;
+    }
+    .soft{
+      background:#fafafa;
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:16px;
+    }
+    .result-grid{
+      display:grid;
+      grid-template-columns:repeat(2, minmax(0,1fr));
+      gap:16px;
+    }
+    .mini{
+      background:#fafafa;
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:16px;
+    }
+    .mini .k{
+      font-size:12px;
+      color:var(--muted);
+    }
+    .mini .v{
+      margin-top:6px;
+      font-size:28px;
+      font-weight:700;
+      line-height:1.35;
+    }
+    .top-item{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:16px;
+      background:#fafafa;
+      border:1px solid var(--line);
+      border-radius:18px;
+      padding:14px 16px;
+      margin-top:12px;
+    }
+    .chart-wrap{
+      width:100%;
+      overflow:auto;
+    }
+    canvas{
+      width:100%;
+      max-width:100%;
+      background:#fff;
+      border-radius:16px;
+    }
+    .formula{
+      background:#fafafa;
+      border:1px solid var(--line);
+      border-radius:20px;
+      padding:16px;
+      margin-top:12px;
+      line-height:1.8;
+      font-size:14px;
+    }
+    .trend-grid{
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0,1fr));
+      gap:16px;
+    }
+    .warn{
+      background:var(--warn-bg);
+      border:1px solid var(--warn-line);
+      border-radius:24px;
+      padding:24px;
+    }
+    ul{
+      margin:12px 0 0 20px;
+      padding:0;
+      line-height:1.9;
+      color:#444;
+    }
+    .inline-check{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-size:14px;
+      font-weight:700;
+      margin-bottom:10px;
+    }
+    .small{
+      font-size:12px;
+      color:var(--muted);
+    }
+    @media (max-width: 980px){
+      .grid{grid-template-columns:1fr;}
+    }
+    @media (max-width: 640px){
+      .wrap{padding:16px;}
+      h1{font-size:26px;}
+      .result-grid,.trend-grid{grid-template-columns:1fr;}
+      .best-box .value{font-size:28px;}
+      .mini .v{font-size:22px;}
+      .panel{padding:18px;}
+      .hero{padding:18px;}
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card hero">
+      <div>
+        <h1>年金受給開始 最適化シミュレーター</h1>
+        <p>男性・平均寿命前提で、受給開始年齢ごとの総受給額を比較し、最も受取総額が大きい開始時期を表示します。</p>
+      </div>
+      <div class="best-box">
+        <div class="label">今回の前提での最適解</div>
+        <div class="value" id="bestAgeHero">-</div>
+      </div>
+    </div>
 
-export default function PensionStartAgeOptimizer() {
-  const LIFE_EXPECTANCY_MALE = 81.09;
+    <div class="grid">
+      <div class="stack">
+        <section class="card panel">
+          <h2>入力条件</h2>
 
-  const [monthlyAt65, setMonthlyAt65] = useState(150000);
-  const [birthYear, setBirthYear] = useState(1974);
-  const [customLifeAge, setCustomLifeAge] = useState(81.09);
-  const [useCustomLifeAge, setUseCustomLifeAge] = useState(false);
+          <div style="margin-top:18px;">
+            <label for="monthlyAt65">65歳時点の想定月額年金</label>
+            <input id="monthlyAt65" type="number" min="0" step="1000" value="150000">
+            <div class="sub">例：150,000円。老齢基礎年金＋老齢厚生年金の合計想定額を入れてください。</div>
+          </div>
 
-  const expectedAge = useCustomLifeAge ? customLifeAge : LIFE_EXPECTANCY_MALE;
-  const useOldEarlyRate = birthYear <= 1962;
-  const earlyRatePerMonth = useOldEarlyRate ? 0.005 : 0.004;
-  const lateRatePerMonth = 0.007;
+          <div style="margin-top:18px;">
+            <label for="birthYear">生年（繰上げ減額率の判定用）</label>
+            <input id="birthYear" type="number" min="1900" max="2100" value="1974">
+            <div class="sub" id="birthYearRule"></div>
+          </div>
 
-  const yen = (value: number) =>
-    new Intl.NumberFormat("ja-JP", {
-      style: "currency",
-      currency: "JPY",
-      maximumFractionDigits: 0,
-    }).format(value);
+          <div class="soft" style="margin-top:18px;">
+            <label class="inline-check">
+              <input id="useCustomLifeAge" type="checkbox">
+              平均寿命ではなく任意の寿命で試算する
+            </label>
+            <input id="customLifeAge" type="number" min="60" max="120" step="0.01" value="81.09" disabled>
+            <div class="sub">未チェック時は男性平均寿命 <span id="lifeExpectancyText">81.09</span>歳 を使用</div>
+          </div>
+        </section>
 
-  const ageLabel = (monthsFrom60: number) => {
-    const years = 60 + Math.floor(monthsFrom60 / 12);
-    const months = monthsFrom60 % 12;
-    return months === 0 ? `${years}歳` : `${years}歳${months}か月`;
-  };
+        <section class="card panel">
+          <h2>今回の結論</h2>
+          <div class="best-box" style="margin-top:8px;">
+            <div class="label">最適な受給開始年齢</div>
+            <div class="value" id="bestAge">-</div>
+            <div class="small" style="margin-top:8px;color:#cfcfcf;">
+              予想寿命 <span id="expectedAge">-</span>歳 までの総受給額が最大
+            </div>
+          </div>
 
-  const results = useMemo(() => {
-    const deathMonthFrom60 = Math.max(0, Math.round((expectedAge - 60) * 12));
-    const age65MonthFrom60 = 60;
-    const list = [] as {
-      startMonth: number;
-      startAge: number;
-      startLabel: string;
-      monthlyPension: number;
-      annualPension: number;
-      paidMonths: number;
-      totalReceived: number;
-      multiplier: number;
-      adjustmentType: string;
-      reductionOrIncreasePercent: number;
-    }[];
+          <div class="result-grid" style="margin-top:16px;">
+            <div class="mini">
+              <div class="k">最適開始時の月額</div>
+              <div class="v" id="bestMonthly">-</div>
+            </div>
+            <div class="mini">
+              <div class="k">最適開始時の総受給額</div>
+              <div class="v" id="bestTotal">-</div>
+            </div>
+            <div class="mini">
+              <div class="k">65歳開始の総受給額</div>
+              <div class="v" id="age65Total">-</div>
+            </div>
+            <div class="mini">
+              <div class="k">65歳開始との差額</div>
+              <div class="v" id="diffFrom65">-</div>
+            </div>
+          </div>
+        </section>
 
-    for (let startMonth = 0; startMonth <= 180; startMonth += 1) {
-      let multiplier;
-      let adjustmentType;
+        <section class="card panel">
+          <h2>トップ5</h2>
+          <div id="top5List"></div>
+        </section>
+      </div>
 
-      if (startMonth < age65MonthFrom60) {
-        const monthsEarly = age65MonthFrom60 - startMonth;
-        multiplier = Math.max(0, 1 - earlyRatePerMonth * monthsEarly);
-        adjustmentType = "繰上げ";
-      } else if (startMonth > age65MonthFrom60) {
-        const monthsLate = startMonth - age65MonthFrom60;
-        multiplier = 1 + lateRatePerMonth * monthsLate;
-        adjustmentType = "繰下げ";
-      } else {
-        multiplier = 1;
-        adjustmentType = "65歳受給";
+      <div class="stack">
+        <section class="card panel">
+          <h2>開始年齢ごとの総受給額</h2>
+          <p>横軸は受給開始年齢、縦軸は想定寿命までの累計受給額です。</p>
+          <div class="chart-wrap" style="margin-top:18px;">
+            <canvas id="totalChart" width="840" height="360"></canvas>
+          </div>
+        </section>
+
+        <section class="card panel">
+          <h2>65歳開始との差額</h2>
+          <p>プラスなら65歳開始より得、マイナスなら65歳開始より少ない受取額です。</p>
+          <div class="chart-wrap" style="margin-top:18px;">
+            <canvas id="diffChart" width="840" height="360"></canvas>
+          </div>
+        </section>
+
+        <section class="card panel">
+          <h2>計算式</h2>
+          <div class="formula">
+            <div><strong>繰上げ</strong></div>
+            <div id="earlyFormulaText"></div>
+          </div>
+          <div class="formula">
+            <div><strong>繰下げ</strong></div>
+            <div>65歳より後なら、65歳時点月額 × ｛1 ＋ （繰下げ月数 × 0.7%）｝</div>
+          </div>
+          <div class="formula">
+            <div><strong>総受給額</strong></div>
+            <div>調整後の月額年金 × （想定寿命到達までの受給月数）</div>
+          </div>
+        </section>
+
+        <section class="card panel">
+          <h2>この前提で見える傾向</h2>
+          <div class="trend-grid" style="margin-top:16px;">
+            <div class="mini">
+              <div class="k">66歳開始</div>
+              <div class="v" id="age66Total">-</div>
+            </div>
+            <div class="mini">
+              <div class="k">67歳開始</div>
+              <div class="v" id="age67Total">-</div>
+            </div>
+            <div class="mini">
+              <div class="k">68歳開始</div>
+              <div class="v" id="age68Total">-</div>
+            </div>
+          </div>
+          <p>平均寿命を前提にすると、受給を早めすぎると月額が下がりすぎ、遅らせすぎると受給月数が減りすぎます。そのため、65歳ちょうどより少し後ろの年齢が最適になりやすい設計です。</p>
+        </section>
+
+        <section class="warn">
+          <h2>注意</h2>
+          <ul>
+            <li>このページは受取総額の単純比較です。税金、社会保険料、運用利回り、在職老齢年金、加給年金、障害・遺族年金との関係は反映していません。</li>
+            <li>特別支給の老齢厚生年金、一部繰上げ、加給年金、在職停止などは個別条件で結果が変わります。</li>
+            <li>最終判断は、ねんきん定期便・ねんきんネット・社労士等の個別確認と合わせて行ってください。</li>
+          </ul>
+        </section>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LIFE_EXPECTANCY_MALE = 81.09;
+
+    const el = {
+      monthlyAt65: document.getElementById("monthlyAt65"),
+      birthYear: document.getElementById("birthYear"),
+      customLifeAge: document.getElementById("customLifeAge"),
+      useCustomLifeAge: document.getElementById("useCustomLifeAge"),
+      bestAgeHero: document.getElementById("bestAgeHero"),
+      bestAge: document.getElementById("bestAge"),
+      expectedAge: document.getElementById("expectedAge"),
+      bestMonthly: document.getElementById("bestMonthly"),
+      bestTotal: document.getElementById("bestTotal"),
+      age65Total: document.getElementById("age65Total"),
+      diffFrom65: document.getElementById("diffFrom65"),
+      top5List: document.getElementById("top5List"),
+      birthYearRule: document.getElementById("birthYearRule"),
+      lifeExpectancyText: document.getElementById("lifeExpectancyText"),
+      earlyFormulaText: document.getElementById("earlyFormulaText"),
+      age66Total: document.getElementById("age66Total"),
+      age67Total: document.getElementById("age67Total"),
+      age68Total: document.getElementById("age68Total"),
+      totalChart: document.getElementById("totalChart"),
+      diffChart: document.getElementById("diffChart"),
+    };
+
+    function yen(value) {
+      return new Intl.NumberFormat("ja-JP", {
+        style: "currency",
+        currency: "JPY",
+        maximumFractionDigits: 0,
+      }).format(value);
+    }
+
+    function ageLabel(monthsFrom60) {
+      const years = 60 + Math.floor(monthsFrom60 / 12);
+      const months = monthsFrom60 % 12;
+      return months === 0 ? `${years}歳` : `${years}歳${months}か月`;
+    }
+
+    function computeResults(monthlyAt65, birthYear, expectedAge) {
+      const useOldEarlyRate = birthYear <= 1962;
+      const earlyRatePerMonth = useOldEarlyRate ? 0.005 : 0.004;
+      const lateRatePerMonth = 0.007;
+      const deathMonthFrom60 = Math.max(0, Math.round((expectedAge - 60) * 12));
+      const age65MonthFrom60 = 60;
+      const list = [];
+
+      for (let startMonth = 0; startMonth <= 180; startMonth += 1) {
+        let multiplier;
+        let adjustmentType;
+
+        if (startMonth < age65MonthFrom60) {
+          const monthsEarly = age65MonthFrom60 - startMonth;
+          multiplier = Math.max(0, 1 - earlyRatePerMonth * monthsEarly);
+          adjustmentType = "繰上げ";
+        } else if (startMonth > age65MonthFrom60) {
+          const monthsLate = startMonth - age65MonthFrom60;
+          multiplier = 1 + lateRatePerMonth * monthsLate;
+          adjustmentType = "繰下げ";
+        } else {
+          multiplier = 1;
+          adjustmentType = "65歳受給";
+        }
+
+        const paidMonths = Math.max(0, deathMonthFrom60 - startMonth);
+        const monthlyPension = monthlyAt65 * multiplier;
+        const totalReceived = monthlyPension * paidMonths;
+        const annualPension = monthlyPension * 12;
+        const startAge = 60 + startMonth / 12;
+
+        list.push({
+          startMonth,
+          startAge,
+          startLabel: ageLabel(startMonth),
+          monthlyPension,
+          annualPension,
+          paidMonths,
+          totalReceived,
+          multiplier,
+          adjustmentType,
+          reductionOrIncreasePercent: (multiplier - 1) * 100,
+        });
       }
 
-      const paidMonths = Math.max(0, deathMonthFrom60 - startMonth);
-      const monthlyPension = monthlyAt65 * multiplier;
-      const totalReceived = monthlyPension * paidMonths;
-      const annualPension = monthlyPension * 12;
-      const startAge = 60 + startMonth / 12;
+      const ranked = [...list].sort((a, b) => b.totalReceived - a.totalReceived);
+      const best = ranked[0];
+      const age65 = list.find((x) => x.startMonth === 60);
+      const age66 = list.find((x) => x.startMonth === 72);
+      const age67 = list.find((x) => x.startMonth === 84);
+      const age68 = list.find((x) => x.startMonth === 96);
 
-      list.push({
-        startMonth,
-        startAge,
-        startLabel: ageLabel(startMonth),
-        monthlyPension,
-        annualPension,
-        paidMonths,
-        totalReceived,
-        multiplier,
-        adjustmentType,
-        reductionOrIncreasePercent: (multiplier - 1) * 100,
+      return {
+        list,
+        best,
+        ranked,
+        age65,
+        age66,
+        age67,
+        age68,
+        deathMonthFrom60,
+        useOldEarlyRate,
+        earlyRatePerMonth,
+      };
+    }
+
+    function drawLineChart(canvas, data, bestLabel) {
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      const margin = { top: 24, right: 20, bottom: 70, left: 82 };
+      const chartW = width - margin.left - margin.right;
+      const chartH = height - margin.top - margin.bottom;
+
+      const values = data.map(d => d.totalReceived);
+      const minY = Math.min(...values);
+      const maxY = Math.max(...values);
+      const pad = Math.max((maxY - minY) * 0.1, 100000);
+      const yMin = Math.max(0, minY - pad);
+      const yMax = maxY + pad;
+
+      const x = (i) => margin.left + (chartW * i) / (data.length - 1);
+      const y = (v) => margin.top + chartH - ((v - yMin) / (yMax - yMin)) * chartH;
+
+      ctx.strokeStyle = "#d4d4d4";
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#525252";
+      ctx.font = '12px "Noto Sans JP","Yu Gothic","Meiryo",sans-serif';
+
+      for (let i = 0; i <= 5; i++) {
+        const value = yMin + ((yMax - yMin) * i) / 5;
+        const py = y(value);
+        ctx.beginPath();
+        ctx.moveTo(margin.left, py);
+        ctx.lineTo(width - margin.right, py);
+        ctx.stroke();
+        ctx.fillText(`${Math.round(value / 10000)}万`, 10, py + 4);
+      }
+
+      data.forEach((d, i) => {
+        const px = x(i);
+        if (d.startLabel === bestLabel) {
+          ctx.save();
+          ctx.setLineDash([5, 5]);
+          ctx.strokeStyle = "#888";
+          ctx.beginPath();
+          ctx.moveTo(px, margin.top);
+          ctx.lineTo(px, margin.top + chartH);
+          ctx.stroke();
+          ctx.restore();
+        }
+      });
+
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      data.forEach((d, i) => {
+        const px = x(i);
+        const py = y(d.totalReceived);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      ctx.strokeStyle = "#444";
+      ctx.lineWidth = 1.2;
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, margin.top + chartH);
+      ctx.lineTo(width - margin.right, margin.top + chartH);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.translate(0, 0);
+      data.forEach((d, i) => {
+        const px = x(i);
+        const py = margin.top + chartH;
+        ctx.save();
+        ctx.translate(px, py + 16);
+        ctx.rotate(-Math.PI / 6);
+        ctx.fillStyle = "#444";
+        ctx.fillText(d.startLabel, 0, 0);
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+
+    function drawBarChart(canvas, data) {
+      const ctx = canvas.getContext("2d");
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      const margin = { top: 24, right: 20, bottom: 70, left: 82 };
+      const chartW = width - margin.left - margin.right;
+      const chartH = height - margin.top - margin.bottom;
+
+      const values = data.map(d => d.diffFrom65);
+      const minY = Math.min(...values, 0);
+      const maxY = Math.max(...values, 0);
+      const pad = Math.max((maxY - minY) * 0.1, 100000);
+      const yMin = minY - pad;
+      const yMax = maxY + pad;
+
+      const step = chartW / data.length;
+      const barW = Math.max(12, step * 0.55);
+      const y = (v) => margin.top + chartH - ((v - yMin) / (yMax - yMin)) * chartH;
+      const zeroY = y(0);
+
+      ctx.strokeStyle = "#d4d4d4";
+      ctx.lineWidth = 1;
+      ctx.fillStyle = "#525252";
+      ctx.font = '12px "Noto Sans JP","Yu Gothic","Meiryo",sans-serif';
+
+      for (let i = 0; i <= 5; i++) {
+        const value = yMin + ((yMax - yMin) * i) / 5;
+        const py = y(value);
+        ctx.beginPath();
+        ctx.moveTo(margin.left, py);
+        ctx.lineTo(width - margin.right, py);
+        ctx.stroke();
+        ctx.fillText(`${Math.round(value / 10000)}万`, 10, py + 4);
+      }
+
+      ctx.strokeStyle = "#444";
+      ctx.beginPath();
+      ctx.moveTo(margin.left, margin.top);
+      ctx.lineTo(margin.left, margin.top + chartH);
+      ctx.lineTo(width - margin.right, margin.top + chartH);
+      ctx.stroke();
+
+      ctx.strokeStyle = "#777";
+      ctx.beginPath();
+      ctx.moveTo(margin.left, zeroY);
+      ctx.lineTo(width - margin.right, zeroY);
+      ctx.stroke();
+
+      data.forEach((d, i) => {
+        const cx = margin.left + step * i + step / 2;
+        const top = y(Math.max(d.diffFrom65, 0));
+        const bottom = y(Math.min(d.diffFrom65, 0));
+        ctx.fillStyle = "#111";
+        ctx.fillRect(cx - barW / 2, top, barW, Math.max(1, bottom - top));
+
+        ctx.save();
+        ctx.translate(cx, margin.top + chartH + 16);
+        ctx.rotate(-Math.PI / 6);
+        ctx.fillStyle = "#444";
+        ctx.fillText(d.startLabel, 0, 0);
+        ctx.restore();
       });
     }
 
-    const best = [...list].sort((a, b) => b.totalReceived - a.totalReceived)[0];
-    const ranked = [...list].sort((a, b) => b.totalReceived - a.totalReceived);
-    const age65 = list.find((x) => x.startMonth === 60)!;
+    function render() {
+      const monthlyAt65 = Number(el.monthlyAt65.value || 0);
+      const birthYear = Number(el.birthYear.value || 1974);
+      const useCustomLifeAge = el.useCustomLifeAge.checked;
+      const expectedAge = useCustomLifeAge ? Number(el.customLifeAge.value || LIFE_EXPECTANCY_MALE) : LIFE_EXPECTANCY_MALE;
 
-    return {
-      list,
-      best,
-      ranked,
-      age65,
-      deathMonthFrom60,
-    };
-  }, [monthlyAt65, expectedAge, earlyRatePerMonth]);
+      el.customLifeAge.disabled = !useCustomLifeAge;
+      el.lifeExpectancyText.textContent = LIFE_EXPECTANCY_MALE.toFixed(2);
 
-  const top5 = results.ranked.slice(0, 5);
+      const results = computeResults(monthlyAt65, birthYear, expectedAge);
+      const chartData = results.list
+        .filter((x) => x.startMonth % 12 === 0)
+        .map((x) => ({
+          ...x,
+          diffFrom65: x.totalReceived - results.age65.totalReceived,
+        }));
 
-  const chartData = results.list
-    .filter((x) => x.startMonth % 12 === 0)
-    .map((x) => ({
-      ...x,
-      diffFrom65: x.totalReceived - results.age65.totalReceived,
-    }));
+      el.birthYearRule.textContent = results.useOldEarlyRate
+        ? "昭和37年4月1日以前生まれ想定：繰上げ減額率は月0.5%で計算"
+        : "昭和37年4月2日以降生まれ想定：繰上げ減額率は月0.4%で計算";
 
-  const breakEvenText = useMemo(() => {
-    const near66 = results.list.find((x) => x.startMonth === 72)!;
-    const near67 = results.list.find((x) => x.startMonth === 84)!;
-    const near68 = results.list.find((x) => x.startMonth === 96)!;
-    return { near66, near67, near68 };
-  }, [results]);
+      el.earlyFormulaText.textContent = `65歳より前なら、65歳時点月額 × ｛1 − （65歳までの月数 × ${results.useOldEarlyRate ? "0.5" : "0.4"}%）｝`;
 
-  return (
-    <div
-      className="min-h-screen bg-neutral-50 text-neutral-900"
-      style={{
-        fontFamily:
-          '"Noto Sans JP", "Hiragino Sans", "Yu Gothic UI", "Yu Gothic", "Meiryo", sans-serif',
-      }}
-    >
-      <div className="mx-auto max-w-7xl px-4 py-8 md:px-8">
-        <div className="mb-6 rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight md:text-3xl">
-                年金受給開始 最適化シミュレーター
-              </h1>
-              <p className="mt-2 text-sm leading-6 text-neutral-600">
-                男性・平均寿命前提で、受給開始年齢ごとの総受給額を比較し、最も受取総額が大きい開始時期を表示します。
-              </p>
-            </div>
-            <div className="rounded-2xl bg-neutral-900 px-4 py-3 text-white shadow-sm">
-              <div className="text-xs text-neutral-300">今回の前提での最適解</div>
-              <div className="mt-1 text-2xl font-bold">{results.best.startLabel}</div>
-            </div>
+      el.bestAgeHero.textContent = results.best.startLabel;
+      el.bestAge.textContent = results.best.startLabel;
+      el.expectedAge.textContent = expectedAge.toFixed(2);
+      el.bestMonthly.textContent = yen(results.best.monthlyPension);
+      el.bestTotal.textContent = yen(results.best.totalReceived);
+      el.age65Total.textContent = yen(results.age65.totalReceived);
+      el.diffFrom65.textContent = yen(results.best.totalReceived - results.age65.totalReceived);
+      el.age66Total.textContent = yen(results.age66.totalReceived);
+      el.age67Total.textContent = yen(results.age67.totalReceived);
+      el.age68Total.textContent = yen(results.age68.totalReceived);
+
+      el.top5List.innerHTML = "";
+      results.ranked.slice(0, 5).forEach((item, index) => {
+        const div = document.createElement("div");
+        div.className = "top-item";
+        div.innerHTML = `
+          <div>
+            <div class="small">${index + 1}位</div>
+            <div style="font-size:22px;font-weight:700;margin-top:4px;">${item.startLabel}</div>
           </div>
-        </div>
-
-        <div className="grid gap-6 lg:grid-cols-[380px_minmax(0,1fr)]">
-          <div className="space-y-6">
-            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-              <h2 className="text-lg font-semibold">入力条件</h2>
-              <div className="mt-5 space-y-5">
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-neutral-700">
-                    65歳時点の想定月額年金
-                  </label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="1000"
-                    value={monthlyAt65}
-                    onChange={(e) => setMonthlyAt65(Number(e.target.value || 0))}
-                    className="w-full rounded-2xl border border-neutral-300 px-4 py-3 text-lg outline-none ring-0 focus:border-neutral-500"
-                  />
-                  <div className="mt-2 text-xs text-neutral-500">
-                    例：150,000円。老齢基礎年金＋老齢厚生年金の合計想定額を入れてください。
-                  </div>
-                </div>
-
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-neutral-700">
-                    生年（繰上げ減額率の判定用）
-                  </label>
-                  <input
-                    type="number"
-                    min="1900"
-                    max="2100"
-                    value={birthYear}
-                    onChange={(e) => setBirthYear(Number(e.target.value || 1974))}
-                    className="w-full rounded-2xl border border-neutral-300 px-4 py-3 text-lg outline-none ring-0 focus:border-neutral-500"
-                  />
-                  <div className="mt-2 text-xs text-neutral-500">
-                    {useOldEarlyRate
-                      ? "昭和37年4月1日以前生まれ想定：繰上げ減額率は月0.5%で計算"
-                      : "昭和37年4月2日以降生まれ想定：繰上げ減額率は月0.4%で計算"}
-                  </div>
-                </div>
-
-                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                  <label className="flex items-center gap-3 text-sm font-medium text-neutral-800">
-                    <input
-                      type="checkbox"
-                      checked={useCustomLifeAge}
-                      onChange={(e) => setUseCustomLifeAge(e.target.checked)}
-                      className="h-4 w-4"
-                    />
-                    平均寿命ではなく任意の寿命で試算する
-                  </label>
-                  <div className="mt-3">
-                    <input
-                      type="number"
-                      min="60"
-                      max="120"
-                      step="0.01"
-                      value={customLifeAge}
-                      onChange={(e) => setCustomLifeAge(Number(e.target.value || 81.09))}
-                      disabled={!useCustomLifeAge}
-                      className="w-full rounded-2xl border border-neutral-300 px-4 py-3 text-lg outline-none disabled:bg-neutral-100"
-                    />
-                  </div>
-                  <div className="mt-2 text-xs text-neutral-500">
-                    未チェック時は男性平均寿命 {LIFE_EXPECTANCY_MALE.toFixed(2)}歳 を使用
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-              <h2 className="text-lg font-semibold">今回の結論</h2>
-              <div className="mt-4 grid gap-4">
-                <div className="rounded-2xl bg-neutral-900 p-5 text-white">
-                  <div className="text-sm text-neutral-300">最適な受給開始年齢</div>
-                  <div className="mt-1 text-3xl font-bold">{results.best.startLabel}</div>
-                  <div className="mt-2 text-sm text-neutral-300">
-                    予想寿命 {expectedAge.toFixed(2)}歳 までの総受給額が最大
-                  </div>
-                </div>
-
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                    <div className="text-xs text-neutral-500">最適開始時の月額</div>
-                    <div className="mt-1 text-xl font-semibold">{yen(results.best.monthlyPension)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                    <div className="text-xs text-neutral-500">最適開始時の総受給額</div>
-                    <div className="mt-1 text-xl font-semibold">{yen(results.best.totalReceived)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                    <div className="text-xs text-neutral-500">65歳開始の総受給額</div>
-                    <div className="mt-1 text-xl font-semibold">{yen(results.age65.totalReceived)}</div>
-                  </div>
-                  <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                    <div className="text-xs text-neutral-500">65歳開始との差額</div>
-                    <div className="mt-1 text-xl font-semibold">
-                      {yen(results.best.totalReceived - results.age65.totalReceived)}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-              <h2 className="text-lg font-semibold">トップ5</h2>
-              <div className="mt-4 space-y-3">
-                {top5.map((item, index) => (
-                  <div
-                    key={item.startMonth}
-                    className="flex items-center justify-between rounded-2xl bg-neutral-50 px-4 py-3 ring-1 ring-neutral-200"
-                  >
-                    <div>
-                      <div className="text-sm text-neutral-500">{index + 1}位</div>
-                      <div className="text-lg font-semibold">{item.startLabel}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="text-sm text-neutral-500">総受給額</div>
-                      <div className="text-base font-semibold">{yen(item.totalReceived)}</div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </section>
+          <div style="text-align:right;">
+            <div class="small">総受給額</div>
+            <div style="font-size:18px;font-weight:700;margin-top:4px;">${yen(item.totalReceived)}</div>
           </div>
+        `;
+        el.top5List.appendChild(div);
+      });
 
-          <div className="space-y-6">
-            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-              <h2 className="text-lg font-semibold">開始年齢ごとの総受給額</h2>
-              <p className="mt-2 text-sm text-neutral-600">
-                横軸は受給開始年齢、縦軸は {expectedAge.toFixed(2)}歳 までの累計受給額です。
-              </p>
-              <div className="mt-6 h-[360px] w-full">
-                <ResponsiveContainer>
-                  <LineChart data={chartData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="startLabel" angle={-25} textAnchor="end" height={70} interval={0} />
-                    <YAxis tickFormatter={(v: number) => `${Math.round(v / 10000)}万`} width={70} />
-                    <Tooltip
-                      formatter={(value: number, name: string) => {
-                        if (name === "totalReceived") return [yen(value), "総受給額"];
-                        return [value, name];
-                      }}
-                    />
-                    <ReferenceLine x={results.best.startLabel} strokeDasharray="4 4" />
-                    <Line type="monotone" dataKey="totalReceived" strokeWidth={3} dot={false} />
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
+      drawLineChart(el.totalChart, chartData, results.best.startLabel);
+      drawBarChart(el.diffChart, chartData);
+    }
 
-            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-              <h2 className="text-lg font-semibold">65歳開始との差額</h2>
-              <p className="mt-2 text-sm text-neutral-600">
-                プラスなら65歳開始より得、マイナスなら65歳開始より少ない受取額です。
-              </p>
-              <div className="mt-6 h-[360px] w-full">
-                <ResponsiveContainer>
-                  <BarChart data={chartData} margin={{ top: 16, right: 24, left: 8, bottom: 8 }}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="startLabel" angle={-25} textAnchor="end" height={70} interval={0} />
-                    <YAxis tickFormatter={(v: number) => `${Math.round(v / 10000)}万`} width={70} />
-                    <Tooltip formatter={(value: number) => [yen(value), "65歳との差額"]} />
-                    <ReferenceLine y={0} />
-                    <Bar dataKey="diffFrom65" radius={[10, 10, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            </section>
+    ["input", "change"].forEach(eventName => {
+      el.monthlyAt65.addEventListener(eventName, render);
+      el.birthYear.addEventListener(eventName, render);
+      el.customLifeAge.addEventListener(eventName, render);
+      el.useCustomLifeAge.addEventListener(eventName, render);
+    });
 
-            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-              <h2 className="text-lg font-semibold">計算式</h2>
-              <div className="mt-4 space-y-3 text-sm leading-7 text-neutral-700">
-                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                  <div className="font-medium">繰上げ</div>
-                  <div>
-                    65歳より前なら、65歳時点月額 × ｛1 − （65歳までの月数 × {useOldEarlyRate ? "0.5" : "0.4"}%）｝
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                  <div className="font-medium">繰下げ</div>
-                  <div>
-                    65歳より後なら、65歳時点月額 × ｛1 ＋ （繰下げ月数 × 0.7%）｝
-                  </div>
-                </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                  <div className="font-medium">総受給額</div>
-                  <div>
-                    調整後の月額年金 × （想定寿命到達までの受給月数）
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section className="rounded-3xl bg-white p-6 shadow-sm ring-1 ring-neutral-200">
-              <h2 className="text-lg font-semibold">この前提で見える傾向</h2>
-              <div className="mt-4 grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                  <div className="text-xs text-neutral-500">66歳開始</div>
-                  <div className="mt-1 text-base font-semibold">{yen(breakEvenText.near66.totalReceived)}</div>
-                </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                  <div className="text-xs text-neutral-500">67歳開始</div>
-                  <div className="mt-1 text-base font-semibold">{yen(breakEvenText.near67.totalReceived)}</div>
-                </div>
-                <div className="rounded-2xl bg-neutral-50 p-4 ring-1 ring-neutral-200">
-                  <div className="text-xs text-neutral-500">68歳開始</div>
-                  <div className="mt-1 text-base font-semibold">{yen(breakEvenText.near68.totalReceived)}</div>
-                </div>
-              </div>
-              <p className="mt-4 text-sm leading-7 text-neutral-600">
-                平均寿命を前提にすると、受給を早めすぎると月額が下がりすぎ、遅らせすぎると受給月数が減りすぎます。そのため、65歳ちょうどより少し後ろの年齢が最適になりやすい設計です。
-              </p>
-            </section>
-
-            <section className="rounded-3xl bg-amber-50 p-6 shadow-sm ring-1 ring-amber-200">
-              <h2 className="text-lg font-semibold">注意</h2>
-              <ul className="mt-3 space-y-2 text-sm leading-7 text-neutral-700 list-disc pl-5">
-                <li>このページは受取総額の単純比較です。税金、社会保険料、運用利回り、在職老齢年金、加給年金、障害・遺族年金との関係は反映していません。</li>
-                <li>特別支給の老齢厚生年金、一部繰上げ、加給年金、在職停止などは個別条件で結果が変わります。</li>
-                <li>最終判断は、ねんきん定期便・ねんきんネット・社労士等の個別確認と合わせて行ってください。</li>
-              </ul>
-            </section>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+    render();
+  </script>
+</body>
+</html>
